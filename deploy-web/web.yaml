@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata: {name: web, labels: {app: web}}
+spec:
+  ports: [{name: http, port: 80, targetPort: 80}]
+  selector: {app: web}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: web}}
+  template:
+    metadata: {labels: {app: web}}
+    spec:
+      imagePullSecrets: [{name: harbor-pull}]
+      containers:
+        - name: web
+          image: harbor.vcf.atd.lab/w-apps/web:initial
+          ports: [{containerPort: 80}]
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+          readinessProbe:
+            httpGet: {path: /, port: 80}
+            periodSeconds: 5
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {name: web-tls}
+spec:
+  secretName: web-tls
+  dnsNames: [web.vcf.atd.lab]
+  issuerRef: {kind: ClusterIssuer, name: w-ca-issuer}
+---
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata: {name: web}
+spec:
+  virtualhost:
+    fqdn: web.vcf.atd.lab
+    tls: {secretName: web-tls}
+  routes:
+    - services: [{name: web, port: 80}]

@@ -1,0 +1,34 @@
+name: build-and-deploy
+on:
+  push:
+    branches: [main]
+    paths: ["app/**"]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: [self-hosted, vcf-lab]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build i push obrazu do Harbor
+        env:
+          HARBOR_USER: ${{ secrets.HARBOR_USER }}
+          HARBOR_TOKEN: ${{ secrets.HARBOR_TOKEN }}
+        run: |
+          TAG="${GITHUB_SHA::8}"
+          IMG="harbor.vcf.atd.lab/w-apps/web:$TAG"
+          AUTH="$RUNNER_TEMP/auth.json"
+          echo "$HARBOR_TOKEN" | podman login --authfile "$AUTH" -u "$HARBOR_USER" --password-stdin harbor.vcf.atd.lab
+          podman build --build-arg VERSION="$TAG" -t "$IMG" app/
+          podman push --authfile "$AUTH" "$IMG"
+          podman logout --authfile "$AUTH" harbor.vcf.atd.lab
+          podman rmi "$IMG"
+          echo "IMG=$IMG" >> "$GITHUB_ENV"
+      - name: Nowy tag obrazu w manifescie (commit dla Argo CD)
+        run: |
+          sed -i "s|image: harbor.vcf.atd.lab/w-apps/web:.*|image: $IMG|" deploy-web/web.yaml
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git commit -am "web: obraz ${IMG##*:}"
+          git push
