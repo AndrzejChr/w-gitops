@@ -17,7 +17,7 @@ spec:
       imagePullSecrets: [{name: harbor-pull}]
       containers:
         - name: web
-          image: harbor.vcf.atd.lab/w-apps/web:9b4ad741
+          image: harbor.vcf.atd.lab/w-apps/web:4118443d
           ports: [{containerPort: 80}]
           resources:
             requests: {cpu: 50m, memory: 32Mi}
